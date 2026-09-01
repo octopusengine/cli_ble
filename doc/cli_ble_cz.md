@@ -15,6 +15,7 @@ python cli_ble.py -s --name MeshCore
 python cli_ble.py -s --address C6:04
 python cli_ble.py -s --service 6e400001-b5a3-f393-e0a9-e50e24dcca9e
 python cli_ble.py -s --service nus
+python cli_ble.py --add F8:ED:34:67:47:E0 smartsolar
 ```
 
 - `-s` / `--scan` — sken okolních zařízení; výpis omezuje `scan.default` v `cli_ble.json` (nyní 20).
@@ -24,6 +25,7 @@ python cli_ble.py -s --service nus
 - `--name TEXT` — ponechá jen zařízení, jejichž název obsahuje zadaný text.
 - `--address TEXT` — ponechá jen zařízení, jejichž adresa obsahuje zadaný text či prefix.
 - `--service UUID` — ponechá jen zařízení, která v reklamních datech oznamují dané UUID služby; přepínač lze opakovat.
+- `--add MAC_NEBO_NAZEV [ID]` — najde a uloží zařízení podle přesného inzerovaného názvu nebo MAC adresy (např. `F8:ED:34:67:47:E0`).
 - `cli_ble.json` může obsahovat krátké GATT aliasy. Vestavěné aliasy `nus`, `nus-rx` a `nus-tx` odpovídají službě Nordic UART, zapisovací RX charakteristice a notifikační TX charakteristice. Plné UUID zůstávají vždy podporované.
 - Název zařízení je v interaktivním terminálu žlutý; adresa a RSSI bílé. Při přesměrování do souboru se žádné ANSI barvy nezapisují.
 

@@ -127,6 +127,9 @@ python cli_ble.py devices
 # Inspect one device configuration
 python cli_ble.py device test-led info
 
+# Print its configuration, resolve it, and inspect its available GATT services
+python cli_ble.py -d test-led
+
 # Run a tool: short and long forms
 python cli_ble.py -d test-led led-on
 python cli_ble.py device test-led run led-on
@@ -136,7 +139,9 @@ python cli_ble.py -d test-led led-toggle
 python cli_ble.py -d test-led esp-hi
 ```
 
-Configured devices are resolved by advertised-name prefix first, making them
+`-d DEVICE` is read-only: it prints the entry from `devices.json`, resolves the
+current address, connects, and lists available GATT services, characteristics,
+and descriptors. Configured devices are resolved by advertised-name prefix first, making them
 resilient to changing BLE addresses. The configured MAC address is a fallback.
 This lookup uses `--timeout` seconds, so a nearby known ESP can be tested more
 quickly with a shorter timeout:
@@ -154,11 +159,14 @@ To discover a device and create a safe initial configuration entry:
 ```powershell
 python cli_ble.py --add octopus-led-48034
 python cli_ble.py --add octopus-led-48034 test-led
+python cli_ble.py --add F8:ED:34:67:47:E0 smartsolar
 ```
 
 The optional second form saves the discovered device under `test-led` in
 `devices.json`; without it, the CLI derives the device ID from the advertised
-name. The command scans for the exact advertised name, prints GATT services, detects
+name. `--add` accepts either an exact advertised name or a MAC address such as
+`F8:ED:34:67:47:E0`; matching MAC addresses ignores letter case and accepts
+colons or hyphens as separators. The command prints GATT services, detects
 known profiles, and avoids duplicate entries. It does not generate write tools
 automatically.
 

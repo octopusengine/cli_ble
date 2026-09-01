@@ -147,6 +147,7 @@ def parse_arguments() -> argparse.Namespace:
             "  python cli_ble.py --examples\n"
             "  python cli_ble.py --add octopus-led-48034\n"
             "  python cli_ble.py --add octopus-led-48034 test-led\n"
+            "  python cli_ble.py --add F8:ED:34:67:47:E0 smartsolar\n"
             "  python cli_ble.py --delete test-led\n"
             "  python cli_ble.py -v -c AA:BB:CC:DD:EE:FF  # debug output\n"
             "  python cli_ble.py -s --name MeshCore --service UUID\n"
@@ -157,6 +158,7 @@ def parse_arguments() -> argparse.Namespace:
             "  python cli_ble.py -c AA:BB:CC:DD:EE:FF --read-all-safe\n"
             "  python cli_ble.py -c AA:BB:CC:DD:EE:FF --notify UUID --listen 15\n"
             "  python cli_ble.py devices\n"
+            "  python cli_ble.py -d test-led  # configured-device overview and GATT inspection\n"
             "  python cli_ble.py -d test-led led-on\n"
             "  python cli_ble.py device test-led run led-on"
         ),
@@ -183,16 +185,16 @@ def parse_arguments() -> argparse.Namespace:
         "-e", "--examples", action="store_true", help="print usage examples"
     )
     action.add_argument(
-        "--add", metavar="ADVERTISED_NAME",
-        help="discover a BLE device by its exact advertised name; optionally add AS_NAME after it"
+        "--add", metavar="MAC_OR_NAME",
+        help="discover a BLE device by its exact MAC address or advertised name; optionally add AS_NAME after it"
     )
     action.add_argument(
         "--delete", metavar="DEVICE",
         help="remove a configured device after typing yes to confirm"
     )
     action.add_argument(
-        "-d", "--device", nargs=2, metavar=("DEVICE", "TOOL"),
-        help="run a configured device tool, e.g. -d test-led led-on"
+        "-d", "--device", nargs="+", metavar=("DEVICE", "TOOL"),
+        help="inspect a configured device, or run its optional TOOL, e.g. -d test-led [led-on]"
     )
     parser.add_argument(
         "device_command", nargs="*", metavar="COMMAND",
@@ -271,7 +273,7 @@ def parse_arguments() -> argparse.Namespace:
     args.add_as_name = None
     if args.add is not None and command:
         if len(command) != 1:
-            parser.error("use: --add ADVERTISED_NAME [AS_NAME]")
+            parser.error("use: --add MAC_OR_NAME [AS_NAME]")
         args.add_as_name = command[0]
         command = []
     if command:
@@ -293,8 +295,15 @@ def parse_arguments() -> argparse.Namespace:
             parser.error("use: devices | device DEVICE info | device DEVICE run TOOL")
     else:
         if args.device:
-            args.device_action = "run"
-            args.device_id, args.tool_id = args.device
+            if len(args.device) == 1:
+                args.device_action = "inspect"
+                args.device_id = args.device[0]
+                args.tool_id = None
+            elif len(args.device) == 2:
+                args.device_action = "run"
+                args.device_id, args.tool_id = args.device
+            else:
+                parser.error("use: -d DEVICE [TOOL]")
         else:
             args.device_action = None
             args.device_id = None
@@ -305,7 +314,7 @@ def parse_arguments() -> argparse.Namespace:
     is_scan = args.scan is not None or args.scan_shortcut is not None
     is_add = args.add is not None
     is_delete = args.delete is not None
-    is_device_run = args.device_action == "run"
+    is_device_connect = args.device_action in {"inspect", "run"}
     if is_scan and any((args.send, args.receive, args.notify, args.services, args.read_all_safe)):
         parser.error("--send, --receive, --notify, --services, and --read-all-safe require --connect DEVICE")
     if not is_scan and args.scan_mode:
@@ -322,12 +331,12 @@ def parse_arguments() -> argparse.Namespace:
         )
     if args.read_all_safe and not args.connect:
         parser.error("--read-all-safe requires --connect DEVICE")
-    if args.pair and not (args.connect or is_device_run or is_add):
-        parser.error("--pair requires --connect DEVICE, --add, or a device tool")
+    if args.pair and not (args.connect or is_device_connect or is_add):
+        parser.error("--pair requires --connect DEVICE, --add, or a device command")
     if args.retries < 0 or args.retry_delay < 0:
         parser.error("--retries and --retry-delay cannot be negative")
-    if not (args.connect or is_device_run or is_add) and args.retries:
-        parser.error("--retries requires --connect DEVICE, --add, or a device tool")
+    if not (args.connect or is_device_connect or is_add) and args.retries:
+        parser.error("--retries requires --connect DEVICE, --add, or a device command")
     if args.hex and not args.send:
         parser.error("--hex can only be used with --send")
     if args.listen <= 0 or args.timeout <= 0:
@@ -358,6 +367,7 @@ def print_examples() -> None:
         ("Scan (default limit from cli_ble.json):", "python cli_ble.py -s"),
         ("Scan and save to a file:", "python cli_ble.py -s scan1.txt"),
         ("Discover and add a device by its exact advertised name:", "python cli_ble.py --add octopus-led-48034"),
+        ("Discover and add a device by its MAC address:", "python cli_ble.py --add F8:ED:34:67:47:E0 smartsolar"),
         ("Discover and save it with a chosen device ID:", "python cli_ble.py --add octopus-led-48034 test-led"),
         ("Delete a configured device after confirmation:", "python cli_ble.py --delete test-led"),
         ("Every discovered device:", "python cli_ble.py -sa"),
@@ -748,17 +758,38 @@ def delete_configured_device(device_id: str) -> bool:
     return True
 
 
+def is_mac_address(value: str) -> bool:
+    """Return whether *value* is a conventional colon- or hyphen-separated MAC address."""
+    return bool(re.fullmatch(r"[0-9A-Fa-f]{2}([:-][0-9A-Fa-f]{2}){5}", value))
+
+
+def normalize_mac_address(value: str) -> str:
+    """Normalize a validated MAC address for case- and separator-insensitive comparison."""
+    return value.replace(":", "").replace("-", "").casefold()
+
+
 async def add_configured_device(args: argparse.Namespace) -> None:
-    """Discover, inspect, and safely register one BLE device by advertised name."""
+    """Discover, inspect, and safely register one BLE device by MAC address or name."""
     config = load_devices_config()
-    info_colored("cyan", f"Scanning for advertised device name {args.add!r} ({args.timeout:g} s)...")
+    match_by_address = is_mac_address(args.add)
+    target_kind = "MAC address" if match_by_address else "advertised device name"
+    info_colored("cyan", f"Scanning for {target_kind} {args.add!r} ({args.timeout:g} s)...")
     discovered = await scan_devices(args.timeout)
-    candidates = [item for item in discovered if (item.name or "").casefold() == args.add.casefold()]
+    if match_by_address:
+        target_address = normalize_mac_address(args.add)
+        candidates = [
+            item for item in discovered
+            if normalize_mac_address(item.address) == target_address
+        ]
+    else:
+        candidates = [item for item in discovered if (item.name or "").casefold() == args.add.casefold()]
     if not candidates:
+        if match_by_address:
+            raise BleDeviceNotFoundError(f"No device was found at MAC address {args.add!r}")
         raise BleDeviceNotFoundError(f"No device advertised the exact name {args.add!r}")
     if len(candidates) > 1:
         addresses = ", ".join(item.address for item in candidates)
-        raise RuntimeError(f"More than one device advertised the name {args.add!r}: {addresses}")
+        raise RuntimeError(f"More than one device matched {target_kind} {args.add!r}: {addresses}")
     device = candidates[0]
     info_segments(
         ("green", "Found "),
@@ -860,6 +891,23 @@ async def run_configured_device_tool(args: argparse.Namespace) -> None:
         retry_delay=getattr(args, "retry_delay", 2.0),
     )
     present_device_tool_result(result)
+
+
+async def inspect_configured_device(args: argparse.Namespace) -> None:
+    """Print configured details, resolve the device, and safely inspect its GATT layout."""
+    config = load_devices_config()
+    device = configured_device(config, args.device_id)
+    print_configured_device_info(args.device_id, device, config)
+    address = await resolve_configured_device_address(args.device_id, device, args.timeout)
+    inspect_args = argparse.Namespace(**vars(args))
+    inspect_args.connect = address
+    inspect_args.send = None
+    inspect_args.hex = False
+    inspect_args.receive = None
+    inspect_args.notify = None
+    inspect_args.services = True
+    inspect_args.read_all_safe = False
+    await communicate(inspect_args)
 
 
 def select_scan_devices(
@@ -1090,6 +1138,8 @@ async def main() -> int:
         elif args.device_action == "info":
             config = load_devices_config()
             print_configured_device_info(args.device_id, configured_device(config, args.device_id), config)
+        elif args.device_action == "inspect":
+            await inspect_configured_device(args)
         elif args.device_action == "run":
             await run_configured_device_tool(args)
         else:

@@ -7,6 +7,7 @@ commands.
 ```powershell
 python cli_ble.py devices
 python cli_ble.py device test-led info
+python cli_ble.py -d test-led
 python cli_ble.py -d test-led led-on
 python cli_ble.py device test-led run led-on
 python cli_ble.py device test-led run led-off
@@ -14,10 +15,14 @@ python cli_ble.py device test-led run led-toggle
 python cli_ble.py device test-led run esp-hi
 python cli_ble.py --add octopus-led-48034
 python cli_ble.py --add octopus-led-48034 test-led
+python cli_ble.py --add F8:ED:34:67:47:E0 smartsolar
 python cli_ble.py --delete test-led
 ```
 
-`-d DEVICE TOOL` and `device DEVICE run TOOL` both scan for the configured
+`-d DEVICE` prints the matching `devices.json` entry, resolves the device,
+connects without reading or writing values, and lists its GATT services,
+characteristics, and descriptors. `-d DEVICE TOOL` and `device DEVICE run TOOL`
+both scan for the configured
 advertised-name prefix first. This
 handles BLE devices that rotate their address. The configured `address` is used
 only when a matching advertised name is not found.
@@ -33,9 +38,11 @@ There is no direct-address-only mode yet. A future explicit switch may skip
 the advertised-name scan and use the configured `address` immediately, but it
 must remain opt-in because it will not handle rotating BLE addresses.
 
-`--add ADVERTISED_NAME [AS_NAME]` searches for one exact advertised name, connects only
-to inspect and print its GATT services, and adds the name and current MAC
-address to `devices.json`. `AS_NAME` is optional and becomes the device ID in
+`--add MAC_OR_NAME [AS_NAME]` searches for one exact advertised name or MAC
+address, connects only to inspect and print its GATT services, and adds the
+name and current MAC address to `devices.json`. MAC-address matching ignores
+letter case and accepts colons or hyphens as separators. `AS_NAME` is optional
+and becomes the device ID in
 the JSON configuration; otherwise the ID is derived from the advertised name.
 It refuses to add an entry when its address or
 advertised-name prefix is already configured. If a known profile service is
