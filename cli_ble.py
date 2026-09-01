@@ -716,10 +716,12 @@ def profile_for_services(config: dict[str, object], services: list[GattService])
     """Return the first configured transport whose service UUID was discovered."""
     profiles = config["profiles"]
     assert isinstance(profiles, dict)
+    aliases = load_gatt_aliases()
     discovered_uuids = {service.uuid.casefold() for service in services}
     for profile_id, profile in profiles.items():
         assert isinstance(profile, dict)
-        if str(profile["service"]).casefold() in discovered_uuids:
+        service_uuid = resolve_gatt_alias(str(profile["service"]), aliases)
+        if service_uuid.casefold() in discovered_uuids:
             return profile_id
     return None
 
@@ -823,6 +825,9 @@ async def run_configured_device_tool(args: argparse.Namespace) -> None:
         raise ValueError(f"Unknown tool {args.tool_id!r} for {args.device_id!r}. Available tools: {available}")
     profile = profiles[profile_id]
     assert isinstance(profile, dict)
+    aliases = load_gatt_aliases()
+    write_characteristic = resolve_gatt_alias(str(profile["write"]), aliases)
+    notify_characteristic = resolve_gatt_alias(str(profile["notify"]), aliases)
     auth = device.get("auth")
     key: str | None = None
     if isinstance(auth, dict):
@@ -841,21 +846,21 @@ async def run_configured_device_tool(args: argparse.Namespace) -> None:
     if key is not None:
         tool_args.send_operations.append(
             {
-                "characteristic": profile["write"],
+                "characteristic": write_characteristic,
                 "message": key,
                 "sensitive": True,
             }
         )
     tool_args.send_operations.append(
         {
-            "characteristic": profile["write"],
+            "characteristic": write_characteristic,
             "message": tool["text"],
             "sensitive": False,
         }
     )
     tool_args.hex = False
     tool_args.receive = None
-    tool_args.notify = profile["notify"] if tool.get("notify") else None
+    tool_args.notify = notify_characteristic if tool.get("notify") else None
     if "listen" in tool:
         tool_args.listen = tool["listen"]
     tool_args.services = False

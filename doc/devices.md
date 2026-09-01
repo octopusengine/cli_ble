@@ -55,7 +55,9 @@ the clear unless the link itself is paired and encrypted.
 
 `profiles` contains technical BLE transports which can be shared by multiple
 devices. The built-in `nordic-uart` profile contains the Nordic UART Service
-and its write/notify characteristics. A device binds to one profile and
+and its write/notify characteristics. These entries can use the GATT aliases
+from `cli_ble.json`, so the built-in profile uses `nus`, `nus-rx`, and
+`nus-tx` instead of duplicating their UUIDs. A device binds to one profile and
 defines human-friendly tools.
 
 ```json
