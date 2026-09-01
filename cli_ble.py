@@ -17,6 +17,7 @@ import sys
 import traceback
 from pathlib import Path
 
+from lib import device_runner
 from lib.wrapp_ble import (
     BleConnection,
     BleConnectionError,
@@ -29,7 +30,6 @@ from lib.wrapp_ble import (
     connect_with_retries,
     describe_value,
     filter_devices,
-    get_env_key,
     scan_devices,
 )
 from lib.wrapp_terminal import Terminal
@@ -809,69 +809,57 @@ async def add_configured_device(args: argparse.Namespace) -> None:
         warning("No configured transport profile matched the discovered services; no profile was assigned.")
 
 
-async def run_configured_device_tool(args: argparse.Namespace) -> None:
-    """Resolve and run a named device tool through its configured BLE profile."""
-    config = load_devices_config()
-    device = configured_device(config, args.device_id)
-    tools = device.get("tools", {})
-    profiles = config["profiles"]
-    assert isinstance(tools, dict) and isinstance(profiles, dict)
-    profile_id = device.get("profile")
-    if not isinstance(profile_id, str):
-        raise ValueError(f"Device {args.device_id!r} has no configured profile and cannot run tools")
-    tool = tools.get(args.tool_id)
-    if not isinstance(tool, dict):
-        available = ", ".join(sorted(tools))
-        raise ValueError(f"Unknown tool {args.tool_id!r} for {args.device_id!r}. Available tools: {available}")
-    profile = profiles[profile_id]
-    assert isinstance(profile, dict)
-    aliases = load_gatt_aliases()
-    write_characteristic = resolve_gatt_alias(str(profile["write"]), aliases)
-    notify_characteristic = resolve_gatt_alias(str(profile["notify"]), aliases)
-    auth = device.get("auth")
-    key: str | None = None
-    if isinstance(auth, dict):
-        environment_name = auth["environment"]
-        assert isinstance(environment_name, str)
-        key = get_env_key(environment_name)
-        if not key:
-            raise ValueError(
-                f"Authentication key {environment_name!r} is missing or empty; set it in .env"
-            )
-    address = await resolve_configured_device_address(args.device_id, device, args.timeout)
-    tool_args = argparse.Namespace(**vars(args))
-    tool_args.connect = address
-    tool_args.send = None
-    tool_args.send_operations = []
-    if key is not None:
-        tool_args.send_operations.append(
-            {
-                "characteristic": write_characteristic,
-                "message": key,
-                "sensitive": True,
-            }
+def notification_source_label(item: device_runner.NotificationValue) -> str:
+    """Avoid repeating a characteristic UUID already included in a backend sender label."""
+    sender = item.sender.strip()
+    if sender.casefold().startswith(item.characteristic.casefold()):
+        return sender
+    return f"{item.characteristic} ({sender})"
+
+
+def present_device_tool_result(result: device_runner.DeviceToolResult) -> None:
+    """Render a shared device-tool result as the CLI's colored terminal report."""
+    if result.description is not None:
+        info_segments(
+            ("cyan", f"Running {result.device_id} tool "),
+            ("yellow", result.tool_id),
+            (None, ": "),
+            ("yellow", result.description),
         )
-    tool_args.send_operations.append(
-        {
-            "characteristic": write_characteristic,
-            "message": tool["text"],
-            "sensitive": False,
-        }
+    else:
+        info_segments(("cyan", f"Running {result.device_id} tool "), ("yellow", result.tool_id))
+    if result.address is not None:
+        source = "advertised name" if result.address_source == "advertised_name" else "configured address"
+        info(f"Using {result.address} ({source}).")
+    for diagnostic in result.diagnostics:
+        warning(diagnostic)
+    if result.connected:
+        info_colored("green", "Connected.")
+    if result.authentication_sent:
+        info_colored("cyan", "Authentication key sent.")
+    for item in result.sent:
+        report_value(f"Sent to {item.characteristic}: ", item.value)
+    for item in result.notifications:
+        report_value(f"Notification from {notification_source_label(item)}: ", item.value)
+    if result.error is not None:
+        raise RuntimeError(f"{result.error.kind}: {result.error.message}")
+    info_colored("green", f"Tool completed ({result.duration_ms} ms).")
+
+
+async def run_configured_device_tool(args: argparse.Namespace) -> None:
+    """Run a named tool through the shared, presentation-free device runner."""
+    config = load_devices_config()
+    result = await device_runner.run_device_tool(
+        config,
+        load_gatt_aliases(),
+        args.device_id,
+        args.tool_id,
+        timeout=args.timeout,
+        pair=getattr(args, "pair", False),
+        retries=getattr(args, "retries", 0),
+        retry_delay=getattr(args, "retry_delay", 2.0),
     )
-    tool_args.hex = False
-    tool_args.receive = None
-    tool_args.notify = notify_characteristic if tool.get("notify") else None
-    if "listen" in tool:
-        tool_args.listen = tool["listen"]
-    tool_args.services = False
-    info_segments(
-        ("cyan", f"Running {args.device_id} tool "),
-        ("yellow", args.tool_id),
-        (None, ": "),
-        ("yellow", tool["description"]),
-    )
-    await communicate(tool_args)
-    info_colored("green", "Tool completed.")
+    present_device_tool_result(result)
 
 
 def select_scan_devices(

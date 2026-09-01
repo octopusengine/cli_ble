@@ -138,6 +138,16 @@ python cli_ble.py -d test-led esp-hi
 
 Configured devices are resolved by advertised-name prefix first, making them
 resilient to changing BLE addresses. The configured MAC address is a fallback.
+This lookup uses `--timeout` seconds, so a nearby known ESP can be tested more
+quickly with a shorter timeout:
+
+```powershell
+python cli_ble.py -d test-led led-on --timeout 5
+```
+
+The CLI intentionally does not yet provide a direct-address switch that skips
+the advertised-name lookup entirely. Such a switch should be explicit because
+it cannot follow devices that rotate their BLE address.
 
 To discover a device and create a safe initial configuration entry:
 
@@ -190,5 +200,6 @@ python -m unittest discover -s tests -v
 
 - [Czech general CLI documentation](doc/cli_ble_cz.md)
 - [Czech ESP32-C3 guide](doc/cli_ble_esp_cz.md)
+- [Czech MCP integration plan](doc/cli_ble_mcp_cz.md)
 - [MicroPython ESP BLE architecture](esp_upy/esp_upy.md)
 - [Device profile and tool format](doc/devices.md)

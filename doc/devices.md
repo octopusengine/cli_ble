@@ -22,6 +22,17 @@ advertised-name prefix first. This
 handles BLE devices that rotate their address. The configured `address` is used
 only when a matching advertised name is not found.
 
+The lookup duration is controlled by `--timeout`; for a nearby known ESP a
+shorter value reduces normal tool startup time:
+
+```powershell
+python cli_ble.py -d test-led led-on --timeout 5
+```
+
+There is no direct-address-only mode yet. A future explicit switch may skip
+the advertised-name scan and use the configured `address` immediately, but it
+must remain opt-in because it will not handle rotating BLE addresses.
+
 `--add ADVERTISED_NAME [AS_NAME]` searches for one exact advertised name, connects only
 to inspect and print its GATT services, and adds the name and current MAC
 address to `devices.json`. `AS_NAME` is optional and becomes the device ID in

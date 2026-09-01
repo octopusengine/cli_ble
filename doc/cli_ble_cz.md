@@ -172,6 +172,10 @@ Zápis do RX je technicky možný, ale nemá se používat naslepo. MeshCore nad
 
 ### Použitelnost
 
+- [ ] Přidat explicitní režim `--direct-address` pro device tool: přeskočí scan
+  podle advertised name a použije uloženou MAC adresu; je rychlejší, ale nefunguje
+  pro zařízení s rotující privátní adresou. Současné bezpečné zrychlení je například
+  `python cli_ble.py -d test-led led-on --timeout 5`.
 - [ ] Přidat `--no-color` pro vynucení nebarevného výstupu.
 - [ ] Přidat strojově čitelný výstup `--json` pro scan, GATT služby a přijatá data.
 - [ ] Přidat ukládání známých zařízení do lokální konfigurace pod přezdívkou, například `meshcore-tag`.
