@@ -36,10 +36,10 @@ python cli_ble.py -c AA:BB:CC:DD:EE:FF
 Příkaz se připojí k zařízení podle aktuální BLE adresy a vypíše jeho GATT služby, charakteristiky, jejich UUID a oprávnění (`read`, `write`, `notify` atd.) i deskriptory charakteristik s jejich handly. BLE adresa může být u některých zařízení soukromá a měnit se; v tom případě je vhodné zařízení před připojením znovu skenovat.
 
 ```powershell
-python cli_ble.py -c AA:BB:CC:DD:EE:FF --read-all-safe
+python cli_ble.py -c AA:BB:CC:DD:EE:FF --ras
 ```
 
-`--read-all-safe` čte pouze charakteristiky, které samy deklarují oprávnění `read`, a zkusí přečíst také nalezené deskriptory. Nevytváří zápis ani notifikace. Pokud zařízení čtení konkrétní hodnoty odmítne, CLI vypíše chybu s UUID (u deskriptoru i handlem) a pokračuje další položkou.
+`--read-all-safe` (zkráceně `--ras`) čte pouze charakteristiky, které samy deklarují oprávnění `read`, a zkusí přečíst také nalezené deskriptory. Nevytváří zápis ani notifikace. Pokud zařízení čtení konkrétní hodnoty odmítne, CLI vypíše chybu s UUID (u deskriptoru i handlem) a pokračuje další položkou.
 
 ### Čtení, zápis a notifikace
 

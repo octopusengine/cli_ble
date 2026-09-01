@@ -65,6 +65,10 @@ význam definuje aplikační kód ESP.
 Označení RX/TX je z perspektivy ESP. CLI tedy zapisuje do RX a přijímá
 notifikace z TX.
 
+V `cli_ble.json` jsou pro tyto UUID také globální zkratky: `nus` (služba),
+`nus-rx` (zápis do ESP) a `nus-tx` (notifikace z ESP). Plné UUID fungují stále
+stejně; například `--notify nus-tx` je zkratka pro celé UUID TX.
+
 ## Zařízení a nástroje
 
 [`devices.json`](devices.json) skrývá technické UUID a Bluefruit rámce pod
@@ -80,9 +84,11 @@ Nové zařízení lze prozkoumat a přidat takto:
 
 ```powershell
 python cli_ble.py --add octopus-led-48034
+python cli_ble.py --add octopus-led-48034 test-led
 ```
 
-Příkaz hledá přesný reklamní název, vypíše GATT služby a chrání konfiguraci
+Volitelný druhý parametr uloží zařízení pod vlastním ID (`test-led`) místo
+automaticky odvozeného jména. Příkaz hledá přesný reklamní název, vypíše GATT služby a chrání konfiguraci
 proti duplicitě podle názvu i MAC adresy.
 
 ## Jednoduchý společný klíč

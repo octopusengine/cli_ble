@@ -13,6 +13,8 @@ python cli_ble.py device test-led run led-off
 python cli_ble.py device test-led run led-toggle
 python cli_ble.py device test-led run esp-hi
 python cli_ble.py --add octopus-led-48034
+python cli_ble.py --add octopus-led-48034 test-led
+python cli_ble.py --delete test-led
 ```
 
 `-d DEVICE TOOL` and `device DEVICE run TOOL` both scan for the configured
@@ -20,11 +22,17 @@ advertised-name prefix first. This
 handles BLE devices that rotate their address. The configured `address` is used
 only when a matching advertised name is not found.
 
-`--add ADVERTISED_NAME` searches for one exact advertised name, connects only
+`--add ADVERTISED_NAME [AS_NAME]` searches for one exact advertised name, connects only
 to inspect and print its GATT services, and adds the name and current MAC
-address to `devices.json`. It refuses to add an entry when its address or
+address to `devices.json`. `AS_NAME` is optional and becomes the device ID in
+the JSON configuration; otherwise the ID is derived from the advertised name.
+It refuses to add an entry when its address or
 advertised-name prefix is already configured. If a known profile service is
 found, it assigns that profile; no write tool is created automatically.
+
+`--delete DEVICE` prints the configured device ID and name, then removes the
+entry only after the exact confirmation `yes`. A different response leaves
+`devices.json` unchanged.
 
 ## Simple key authentication
 

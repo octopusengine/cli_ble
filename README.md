@@ -1,5 +1,10 @@
 # cli_ble
 
+Version 0.2
+
+Use `-V` / `--version` to print the CLI version. `-v` / `--verbose` remains
+reserved for detailed diagnostic output.
+
 `cli_ble` is a small cross-platform command-line tool for Bluetooth Low Energy
 (BLE). It is built on [Bleak](https://github.com/hbldh/bleak) and supports
 scanning, GATT inspection, characteristic reads/writes, notifications, and
@@ -77,7 +82,7 @@ python cli_ble.py -c AA:BB:CC:DD:EE:FF
 python cli_ble.py -c AA:BB:CC:DD:EE:FF --receive CHARACTERISTIC_UUID
 
 # Read all characteristics advertised as readable, plus descriptor values
-python cli_ble.py -c AA:BB:CC:DD:EE:FF --read-all-safe
+python cli_ble.py -c AA:BB:CC:DD:EE:FF --ras
 
 # Write UTF-8 text or binary data
 python cli_ble.py -c AA:BB:CC:DD:EE:FF --send CHARACTERISTIC_UUID "hello"
@@ -87,7 +92,7 @@ python cli_ble.py -c AA:BB:CC:DD:EE:FF --send CHARACTERISTIC_UUID "01 ff 7a" --h
 python cli_ble.py -c AA:BB:CC:DD:EE:FF --notify CHARACTERISTIC_UUID --listen 30
 ```
 
-`--read-all-safe` never writes or subscribes. It only reads characteristics
+`--read-all-safe` (short form: `--ras`) never writes or subscribes. It only reads characteristics
 that advertise the `read` property, then attempts to read discovered
 descriptors. A protected or unsupported read is reported for that individual
 UUID or descriptor while the remaining inspection continues.

@@ -34,6 +34,8 @@ from lib.wrapp_ble import (
 )
 from lib.wrapp_terminal import Terminal
 
+__version__ = "0.2"
+
 CONFIG_FILE = Path(__file__).with_name("cli_ble.json")
 DEVICES_FILE = Path(__file__).with_name("devices.json")
 TERMINAL = Terminal()
@@ -160,6 +162,7 @@ def parse_arguments() -> argparse.Namespace:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")
     action = parser.add_mutually_exclusive_group()
     action.add_argument(
         "-s", "--scan", nargs="?", const="", metavar="FILE",
@@ -211,7 +214,7 @@ def parse_arguments() -> argparse.Namespace:
         help="read a GATT characteristic once"
     )
     parser.add_argument(
-        "--read-all-safe", action="store_true",
+        "--read-all-safe", "--ras", dest="read_all_safe", action="store_true",
         help="read every readable characteristic and discovered descriptor; report failures individually"
     )
     parser.add_argument(
