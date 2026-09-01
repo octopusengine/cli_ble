@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "profiles": {
+    "nordic-uart": {
+      "service": "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+      "write": "6e400002-b5a3-f393-e0a9-e50e24dcca9e",
+      "notify": "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+    }
+  },
+  "devices": {
+    "test-led": {
+      "name": "ESP32-C3 Test LED",
+      "match": {
+        "advertised_name_prefix": "octopus-led-",
+        "address": "48:31:B7:33:D0:36"
+      },
+      "profile": "nordic-uart",
+      "auth": {
+        "environment": "KEY1"
+      },
+      "tools": {
+        "led-on": {
+          "text": "!B516",
+          "description": "Turn the LED on"
+        },
+        "led-off": {
+          "text": "!B615",
+          "description": "Turn the LED off"
+        },
+        "led-toggle": {
+          "text": "!B813",
+          "description": "Toggle the LED"
+        },
+        "esp-hi": {
+          "text": "hi",
+          "description": "Send a greeting and wait for hello",
+          "notify": true,
+          "listen": 2
+        }
+      }
+    },
+    "octopus-pwm": {
+      "name": "octopus-pwm-24d68",
+      "match": {
+        "advertised_name_prefix": "octopus-pwm-24d68",
+        "address": "24:6F:28:04:4D:6A"
+      },
+      "tools": { "led-on": {
+          "text": "!B516",
+          "description": "Turn the LED on"
+        },
+        "led-off": {
+          "text": "!B615",
+          "description": "Turn the LED off"
+        }
+       },
+      "profile": "nordic-uart"
+    }
+  }
+}
