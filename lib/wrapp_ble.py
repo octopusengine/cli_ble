@@ -54,12 +54,22 @@ class BleDevice:
 
 
 @dataclass(frozen=True)
+class GattDescriptor:
+    """Description of one GATT descriptor addressed by its numeric handle."""
+
+    handle: int
+    uuid: str
+    description: str
+
+
+@dataclass(frozen=True)
 class GattCharacteristic:
     """Description of one GATT characteristic."""
 
     uuid: str
     description: str
     properties: tuple[str, ...]
+    descriptors: tuple[GattDescriptor, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -257,6 +267,14 @@ class BleConnection:
                         uuid=characteristic.uuid,
                         description=characteristic.description,
                         properties=tuple(characteristic.properties),
+                        descriptors=tuple(
+                            GattDescriptor(
+                                handle=descriptor.handle,
+                                uuid=descriptor.uuid,
+                                description=descriptor.description,
+                            )
+                            for descriptor in characteristic.descriptors
+                        ),
                     )
                     for characteristic in service.characteristics
                 ),
@@ -267,6 +285,10 @@ class BleConnection:
     async def read(self, characteristic: str) -> bytes:
         """Read one GATT characteristic."""
         return bytes(await self.client.read_gatt_char(characteristic))
+
+    async def read_descriptor(self, handle: int) -> bytes:
+        """Read one GATT descriptor by its numeric handle."""
+        return bytes(await self.client.read_gatt_descriptor(handle))
 
     async def write(
         self, characteristic: str, data: bytes, response: bool | None = None

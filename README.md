@@ -70,11 +70,14 @@ python cli_ble.py -s
 # Filter a scan by advertised name
 python cli_ble.py -s --name octopus-led
 
-# Inspect GATT services and characteristics
+# Inspect GATT services, characteristics, and descriptors
 python cli_ble.py -c AA:BB:CC:DD:EE:FF
 
 # Read one characteristic
 python cli_ble.py -c AA:BB:CC:DD:EE:FF --receive CHARACTERISTIC_UUID
+
+# Read all characteristics advertised as readable, plus descriptor values
+python cli_ble.py -c AA:BB:CC:DD:EE:FF --read-all-safe
 
 # Write UTF-8 text or binary data
 python cli_ble.py -c AA:BB:CC:DD:EE:FF --send CHARACTERISTIC_UUID "hello"
@@ -83,6 +86,11 @@ python cli_ble.py -c AA:BB:CC:DD:EE:FF --send CHARACTERISTIC_UUID "01 ff 7a" --h
 # Subscribe to notifications
 python cli_ble.py -c AA:BB:CC:DD:EE:FF --notify CHARACTERISTIC_UUID --listen 30
 ```
+
+`--read-all-safe` never writes or subscribes. It only reads characteristics
+that advertise the `read` property, then attempts to read discovered
+descriptors. A protected or unsupported read is reported for that individual
+UUID or descriptor while the remaining inspection continues.
 
 ### GATT aliases
 
@@ -130,9 +138,12 @@ To discover a device and create a safe initial configuration entry:
 
 ```powershell
 python cli_ble.py --add octopus-led-48034
+python cli_ble.py --add octopus-led-48034 test-led
 ```
 
-The command scans for the exact advertised name, prints GATT services, detects
+The optional second form saves the discovered device under `test-led` in
+`devices.json`; without it, the CLI derives the device ID from the advertised
+name. The command scans for the exact advertised name, prints GATT services, detects
 known profiles, and avoids duplicate entries. It does not generate write tools
 automatically.
 
@@ -174,4 +185,5 @@ python -m unittest discover -s tests -v
 
 - [Czech general CLI documentation](doc/cli_ble_cz.md)
 - [Czech ESP32-C3 guide](doc/cli_ble_esp_cz.md)
+- [MicroPython ESP BLE architecture](esp_upy/esp_upy.md)
 - [Device profile and tool format](doc/devices.md)

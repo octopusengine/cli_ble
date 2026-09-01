@@ -24,6 +24,7 @@ from lib.wrapp_ble import (
     BleDeviceNotFoundError,
     BleakError,
     BleUnavailableError,
+    GattDescriptor,
     GattService,
     connect_with_retries,
     describe_value,
@@ -143,6 +144,7 @@ def parse_arguments() -> argparse.Namespace:
             "  python cli_ble.py -s -t  # or -st: strongest signal\n"
             "  python cli_ble.py --examples\n"
             "  python cli_ble.py --add octopus-led-48034\n"
+            "  python cli_ble.py --add octopus-led-48034 test-led\n"
             "  python cli_ble.py --delete test-led\n"
             "  python cli_ble.py -v -c AA:BB:CC:DD:EE:FF  # debug output\n"
             "  python cli_ble.py -s --name MeshCore --service UUID\n"
@@ -150,6 +152,7 @@ def parse_arguments() -> argparse.Namespace:
             "  python cli_ble.py -c AA:BB:CC:DD:EE:FF\n"
             "  python cli_ble.py -c AA:BB:CC:DD:EE:FF --send UUID 'hello'\n"
             "  python cli_ble.py -c AA:BB:CC:DD:EE:FF --receive UUID\n"
+            "  python cli_ble.py -c AA:BB:CC:DD:EE:FF --read-all-safe\n"
             "  python cli_ble.py -c AA:BB:CC:DD:EE:FF --notify UUID --listen 15\n"
             "  python cli_ble.py devices\n"
             "  python cli_ble.py -d test-led led-on\n"
@@ -178,7 +181,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     action.add_argument(
         "--add", metavar="ADVERTISED_NAME",
-        help="discover a BLE device by its exact advertised name and add it to devices.json"
+        help="discover a BLE device by its exact advertised name; optionally add AS_NAME after it"
     )
     action.add_argument(
         "--delete", metavar="DEVICE",
@@ -206,6 +209,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--receive", "--rec", "--recieve", "--read", dest="receive", metavar="CHARACTERISTIC",
         help="read a GATT characteristic once"
+    )
+    parser.add_argument(
+        "--read-all-safe", action="store_true",
+        help="read every readable characteristic and discovered descriptor; report failures individually"
     )
     parser.add_argument(
         "--notify", metavar="CHARACTERISTIC",
@@ -258,8 +265,14 @@ def parse_arguments() -> argparse.Namespace:
 
     args = parser.parse_args()
     command = args.device_command
+    args.add_as_name = None
+    if args.add is not None and command:
+        if len(command) != 1:
+            parser.error("use: --add ADVERTISED_NAME [AS_NAME]")
+        args.add_as_name = command[0]
+        command = []
     if command:
-        if any((args.scan is not None, args.scan_shortcut, args.connect, args.examples, args.add, args.delete, args.device)):
+        if any((args.scan is not None, args.scan_shortcut, args.connect, args.examples, args.add is not None, args.delete, args.device)):
             parser.error("device commands cannot be combined with scan, connect, or examples actions")
         if command == ["devices"]:
             args.device_action = "list"
@@ -283,15 +296,15 @@ def parse_arguments() -> argparse.Namespace:
             args.device_action = None
             args.device_id = None
             args.tool_id = None
-        if not any((args.scan is not None, args.scan_shortcut, args.connect, args.examples, args.add, args.delete, args.device)):
+        if not any((args.scan is not None, args.scan_shortcut, args.connect, args.examples, args.add is not None, args.delete, args.device)):
             parser.error("choose a scan, connect, examples, add, or device command")
 
     is_scan = args.scan is not None or args.scan_shortcut is not None
     is_add = args.add is not None
     is_delete = args.delete is not None
     is_device_run = args.device_action == "run"
-    if is_scan and any((args.send, args.receive, args.notify, args.services)):
-        parser.error("--send, --receive, --notify, and --services require --connect DEVICE")
+    if is_scan and any((args.send, args.receive, args.notify, args.services, args.read_all_safe)):
+        parser.error("--send, --receive, --notify, --services, and --read-all-safe require --connect DEVICE")
     if not is_scan and args.scan_mode:
         parser.error("-a/--all and -t/--top require -s/--scan")
     if args.scan_shortcut and args.scan_mode:
@@ -299,11 +312,13 @@ def parse_arguments() -> argparse.Namespace:
     if not is_scan and not is_add and not is_delete and not args.device_action and any((args.name, args.address, args.service_filters)):
         parser.error("--name, --address, and --service require -s/--scan")
     if (args.device_action or is_add or is_delete) and any(
-        (args.send, args.receive, args.notify, args.services, args.hex, args.name, args.address, args.service_filters)
+        (args.send, args.receive, args.notify, args.services, args.read_all_safe, args.hex, args.name, args.address, args.service_filters)
     ):
         parser.error(
             "GATT and scan filters cannot be used with device commands, --add, or --delete"
         )
+    if args.read_all_safe and not args.connect:
+        parser.error("--read-all-safe requires --connect DEVICE")
     if args.pair and not (args.connect or is_device_run or is_add):
         parser.error("--pair requires --connect DEVICE, --add, or a device tool")
     if args.retries < 0 or args.retry_delay < 0:
@@ -340,6 +355,7 @@ def print_examples() -> None:
         ("Scan (default limit from cli_ble.json):", "python cli_ble.py -s"),
         ("Scan and save to a file:", "python cli_ble.py -s scan1.txt"),
         ("Discover and add a device by its exact advertised name:", "python cli_ble.py --add octopus-led-48034"),
+        ("Discover and save it with a chosen device ID:", "python cli_ble.py --add octopus-led-48034 test-led"),
         ("Delete a configured device after confirmation:", "python cli_ble.py --delete test-led"),
         ("Every discovered device:", "python cli_ble.py -sa"),
         ("10 devices with the strongest signal:", "python cli_ble.py -st"),
@@ -347,6 +363,10 @@ def print_examples() -> None:
         (
             "Read a characteristic (Battery Level example):",
             f"python cli_ble.py -c {address} --receive {battery_level_uuid}",
+        ),
+        (
+            "Read all readable characteristics and descriptor values:",
+            f"python cli_ble.py -c {address} --read-all-safe",
         ),
         (
             "Subscribe to notifications for 30 seconds:",
@@ -757,7 +777,13 @@ async def add_configured_device(args: argparse.Namespace) -> None:
 
     devices = config["devices"]
     assert isinstance(devices, dict)
-    device_id = device_id_from_name(device.name or args.add, devices)
+    requested_id = getattr(args, "add_as_name", None)
+    if requested_id is not None:
+        if requested_id in devices:
+            raise ValueError(f"Cannot add device as {requested_id!r}: that device ID already exists")
+        device_id = requested_id
+    else:
+        device_id = device_id_from_name(device.name or args.add, devices)
     entry: dict[str, object] = {
         "name": device.name or args.add,
         "match": {
@@ -893,6 +919,42 @@ def print_services(services: list[GattService]) -> None:
         for characteristic in service.characteristics:
             properties = ", ".join(characteristic.properties)
             info(f"    {characteristic.uuid}  [{properties}]  {characteristic.description}")
+            for descriptor in characteristic.descriptors:
+                info(
+                    f"      {descriptor.uuid}  (Handle: {descriptor.handle})  "
+                    f"{descriptor.description}"
+                )
+
+
+async def read_all_safe_values(device: BleConnection, services: list[GattService]) -> None:
+    """Read advertised readable characteristics and descriptors without aborting inspection."""
+    info("Reading readable GATT values:")
+    for service in services:
+        for characteristic in service.characteristics:
+            if "read" in {property_name.casefold() for property_name in characteristic.properties}:
+                try:
+                    value = await device.read(characteristic.uuid)
+                except Exception as exc:
+                    warning(f"Could not read characteristic {characteristic.uuid}: {exc}")
+                else:
+                    report_value(f"Characteristic {characteristic.uuid}: ", value)
+            for descriptor in characteristic.descriptors:
+                await read_descriptor_safe(device, descriptor, characteristic.uuid)
+
+
+async def read_descriptor_safe(
+    device: BleConnection, descriptor: GattDescriptor, characteristic_uuid: str
+) -> None:
+    """Read and report one descriptor without preventing other GATT reads."""
+    try:
+        value = await device.read_descriptor(descriptor.handle)
+    except Exception as exc:
+        warning(
+            f"Could not read descriptor {descriptor.uuid} (handle {descriptor.handle}, "
+            f"characteristic {characteristic_uuid}): {exc}"
+        )
+    else:
+        report_value(f"Descriptor {descriptor.uuid} (handle {descriptor.handle}): ", value)
 
 
 async def communicate(args: argparse.Namespace) -> list[GattService]:
@@ -936,10 +998,14 @@ async def communicate(args: argparse.Namespace) -> list[GattService]:
                 )
         has_send = bool(send_operations)
 
+        read_all_safe = getattr(args, "read_all_safe", False)
         # Plain -c is a safe way to inspect the available UUIDs.
-        if args.services or not any((has_send, args.receive, args.notify)):
+        if args.services or read_all_safe or not any((has_send, args.receive, args.notify)):
             discovered_services = device.services()
             print_services(discovered_services)
+
+        if read_all_safe:
+            await read_all_safe_values(device, discovered_services)
 
         if args.receive:
             value = await device.read(args.receive)

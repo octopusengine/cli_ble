@@ -14,6 +14,7 @@ python cli_ble.py -st
 python cli_ble.py -s --name MeshCore
 python cli_ble.py -s --address C6:04
 python cli_ble.py -s --service 6e400001-b5a3-f393-e0a9-e50e24dcca9e
+python cli_ble.py -s --service nus
 ```
 
 - `-s` / `--scan` — sken okolních zařízení; výpis omezuje `scan.default` v `cli_ble.json` (nyní 20).
@@ -23,6 +24,7 @@ python cli_ble.py -s --service 6e400001-b5a3-f393-e0a9-e50e24dcca9e
 - `--name TEXT` — ponechá jen zařízení, jejichž název obsahuje zadaný text.
 - `--address TEXT` — ponechá jen zařízení, jejichž adresa obsahuje zadaný text či prefix.
 - `--service UUID` — ponechá jen zařízení, která v reklamních datech oznamují dané UUID služby; přepínač lze opakovat.
+- `cli_ble.json` může obsahovat krátké GATT aliasy. Vestavěné aliasy `nus`, `nus-rx` a `nus-tx` odpovídají službě Nordic UART, zapisovací RX charakteristice a notifikační TX charakteristice. Plné UUID zůstávají vždy podporované.
 - Název zařízení je v interaktivním terminálu žlutý; adresa a RSSI bílé. Při přesměrování do souboru se žádné ANSI barvy nezapisují.
 
 ### Připojení a průzkum GATT
@@ -31,7 +33,13 @@ python cli_ble.py -s --service 6e400001-b5a3-f393-e0a9-e50e24dcca9e
 python cli_ble.py -c AA:BB:CC:DD:EE:FF
 ```
 
-Příkaz se připojí k zařízení podle aktuální BLE adresy a vypíše jeho GATT služby, charakteristiky, jejich UUID a oprávnění (`read`, `write`, `notify` atd.). BLE adresa může být u některých zařízení soukromá a měnit se; v tom případě je vhodné zařízení před připojením znovu skenovat.
+Příkaz se připojí k zařízení podle aktuální BLE adresy a vypíše jeho GATT služby, charakteristiky, jejich UUID a oprávnění (`read`, `write`, `notify` atd.) i deskriptory charakteristik s jejich handly. BLE adresa může být u některých zařízení soukromá a měnit se; v tom případě je vhodné zařízení před připojením znovu skenovat.
+
+```powershell
+python cli_ble.py -c AA:BB:CC:DD:EE:FF --read-all-safe
+```
+
+`--read-all-safe` čte pouze charakteristiky, které samy deklarují oprávnění `read`, a zkusí přečíst také nalezené deskriptory. Nevytváří zápis ani notifikace. Pokud zařízení čtení konkrétní hodnoty odmítne, CLI vypíše chybu s UUID (u deskriptoru i handlem) a pokračuje další položkou.
 
 ### Čtení, zápis a notifikace
 
@@ -40,6 +48,8 @@ python cli_ble.py -c AA:BB:CC:DD:EE:FF --receive CHARACTERISTIC_UUID
 python cli_ble.py -c AA:BB:CC:DD:EE:FF --notify CHARACTERISTIC_UUID --listen 30
 python cli_ble.py -c AA:BB:CC:DD:EE:FF --send CHARACTERISTIC_UUID "text"
 python cli_ble.py -c AA:BB:CC:DD:EE:FF --send CHARACTERISTIC_UUID "01 ff 7a" --hex
+python cli_ble.py -c AA:BB:CC:DD:EE:FF --notify nus-tx --listen 30
+python cli_ble.py -c AA:BB:CC:DD:EE:FF --send nus-rx "text"
 ```
 
 - `--receive` (také `--read`, `--rec` a záměrně podporované chybné `--recieve`) přečte jednu hodnotu.
@@ -147,8 +157,8 @@ Zápis do RX je technicky možný, ale nemá se používat naslepo. MeshCore nad
 
 ### Průzkum GATT
 
-- [ ] Přidat přepínač `--read-all-safe`, který čte pouze charakteristiky označené `read` a chyby hlásí po jednotlivých UUID.
-- [ ] Přidat výpis deskriptorů charakteristik a jejich hodnot.
+- [x] Přidán přepínač `--read-all-safe`: čte jen charakteristiky označené `read` a chyby hlásí po jednotlivých UUID.
+- [x] Přidán výpis deskriptorů charakteristik; `--read-all-safe` vypisuje i jejich hodnoty.
 - [ ] Ověřit a zdokumentovat odběr `indicate` na `Service Changed`.
 - [ ] Přidat export GATT mapy do JSON pro porovnání mezi firmware verzemi.
 
